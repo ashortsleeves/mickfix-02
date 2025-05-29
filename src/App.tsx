@@ -10,12 +10,6 @@ interface AnalysisResult {
   steps: string[];
 }
 
-interface ErrorResponse {
-  error: string;
-  details?: string;
-  type?: string;
-}
-
 // Function to compress image
 const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
