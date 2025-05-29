@@ -4,11 +4,17 @@ import OpenAI from 'openai'
 const handler: Handler = async (event) => {
   console.log('Function invoked with method:', event.httpMethod)
 
+  // Always return JSON responses
+  const jsonResponse = (statusCode: number, body: any) => ({
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  })
+
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: 'Method Not Allowed'
-    }
+    return jsonResponse(405, { error: 'Method Not Allowed' })
   }
 
   try {
@@ -17,7 +23,10 @@ const handler: Handler = async (event) => {
     console.log('Environment check - API Key exists:', hasApiKey)
     
     if (!hasApiKey) {
-      throw new Error('OpenAI API key is not configured')
+      return jsonResponse(500, { 
+        error: 'Configuration Error',
+        details: 'OpenAI API key is not configured'
+      })
     }
 
     // Initialize OpenAI client
@@ -27,25 +36,34 @@ const handler: Handler = async (event) => {
     })
 
     // Parse request body
-    console.log('Parsing request body...')
-    const { image } = JSON.parse(event.body || '{}')
+    let requestBody
+    try {
+      requestBody = JSON.parse(event.body || '{}')
+    } catch (e) {
+      return jsonResponse(400, { 
+        error: 'Invalid Request',
+        details: 'Request body must be valid JSON'
+      })
+    }
+
+    const { image } = requestBody
     
     if (!image) {
       console.log('No image provided in request')
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'No image provided' })
-      }
+      return jsonResponse(400, { 
+        error: 'Invalid Request',
+        details: 'No image provided'
+      })
     }
 
     // Validate image data
     console.log('Image data length:', image.length)
     if (!image.startsWith('data:image/') && !image.startsWith('http')) {
       console.log('Invalid image format')
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid image format' })
-      }
+      return jsonResponse(400, { 
+        error: 'Invalid Request',
+        details: 'Invalid image format. Must be a data URL or HTTP URL.'
+      })
     }
 
     console.log('Attempting to call OpenAI API...')
@@ -69,17 +87,32 @@ const handler: Handler = async (event) => {
 
     console.log('OpenAI API response received')
     console.log('Response type:', typeof response.output_text)
-    console.log('Raw response:', response.output_text)
+    
+    if (!response.output_text) {
+      return jsonResponse(500, {
+        error: 'API Error',
+        details: 'No response received from OpenAI'
+      })
+    }
 
-    // Parse the response and extract JSON
-    const jsonResponse = extractJsonFromResponse(response.output_text || '{}')
+    try {
+      const parsedResponse = extractJsonFromResponse(response.output_text)
+      
+      // Validate response format
+      if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps) {
+        return jsonResponse(500, {
+          error: 'API Error',
+          details: 'Invalid response format from OpenAI'
+        })
+      }
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(jsonResponse)
+      return jsonResponse(200, parsedResponse)
+    } catch (e) {
+      console.error('Failed to parse OpenAI response:', response.output_text)
+      return jsonResponse(500, {
+        error: 'API Error',
+        details: 'Failed to parse OpenAI response'
+      })
     }
   } catch (error) {
     console.error('Detailed error:', {
@@ -100,17 +133,11 @@ const handler: Handler = async (event) => {
       })
     }
 
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        error: 'Internal Server Error',
-        details: error.message,
-        type: error.type || error.name
-      })
-    }
+    return jsonResponse(500, {
+      error: 'Internal Server Error',
+      details: error instanceof Error ? error.message : 'Unknown error occurred',
+      type: error instanceof Error ? (error.name || 'Error') : 'Unknown'
+    })
   }
 }
 

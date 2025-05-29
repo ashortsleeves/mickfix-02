@@ -16,6 +16,58 @@ interface ErrorResponse {
   type?: string;
 }
 
+// Function to compress image
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate new dimensions (max 800px width/height while maintaining aspect ratio)
+        let width = img.width;
+        let height = img.height;
+        const maxSize = 800;
+        
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Convert to JPEG with 0.8 quality
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(compressedDataUrl);
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Failed to load image'));
+      };
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Failed to read file'));
+    };
+  });
+};
+
 function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
@@ -26,44 +78,50 @@ function App() {
     setError(null)
     
     try {
-      // Convert the image to base64
-      const reader = new FileReader()
-      reader.readAsDataURL(file)
+      // Compress the image before sending
+      const compressedImage = await compressImage(file);
       
-      reader.onload = async () => {
-        const base64Image = reader.result as string
-        
-        try {
-          const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              image: base64Image
-            })
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image: compressedImage
           })
+        })
 
-          const data = await response.json()
-
-          if (!response.ok) {
-            const errorData = data as ErrorResponse
-            throw new Error(
-              `API Error: ${errorData.error}${errorData.details ? ` - ${errorData.details}` : ''}`
-            )
+        let data
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json()
+        } else {
+          // If not JSON, get the text and try to parse it
+          const text = await response.text()
+          try {
+            data = JSON.parse(text)
+          } catch (e) {
+            console.error('Response was not JSON:', text)
+            throw new Error(`Server error: ${text}`)
           }
-
-          setAnalysisResult(data)
-        } catch (error) {
-          console.error('Error analyzing image:', error)
-          setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.')
-        } finally {
-          setIsAnalyzing(false)
         }
-      }
 
-      reader.onerror = () => {
-        setError('Failed to read image file. Please try again.')
+        if (!response.ok) {
+          throw new Error(
+            `API Error: ${data.error || data.details || response.statusText}`
+          )
+        }
+
+        if (!data.summary || !data.tools || !data.steps) {
+          throw new Error('Invalid response format from API')
+        }
+
+        setAnalysisResult(data)
+      } catch (error) {
+        console.error('Error analyzing image:', error)
+        setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.')
+      } finally {
         setIsAnalyzing(false)
       }
     } catch (error) {
