@@ -10,6 +10,12 @@ interface AnalysisResult {
   steps: string[];
 }
 
+interface ErrorResponse {
+  error: string;
+  details?: string;
+  type?: string;
+}
+
 function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
@@ -38,15 +44,19 @@ function App() {
             })
           })
 
+          const data = await response.json()
+
           if (!response.ok) {
-            throw new Error('Failed to analyze image')
+            const errorData = data as ErrorResponse
+            throw new Error(
+              `API Error: ${errorData.error}${errorData.details ? ` - ${errorData.details}` : ''}`
+            )
           }
 
-          const result = await response.json()
-          setAnalysisResult(result)
+          setAnalysisResult(data)
         } catch (error) {
           console.error('Error analyzing image:', error)
-          setError('Failed to analyze image. Please try again.')
+          setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.')
         } finally {
           setIsAnalyzing(false)
         }
