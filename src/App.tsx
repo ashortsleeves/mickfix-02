@@ -3,6 +3,7 @@ import './App.css'
 import ImageUpload from './components/ImageUpload'
 import Analysis from './components/Analysis'
 import Header from './components/Header'
+import DescriptionInput from './components/DescriptionInput'
 
 interface AnalysisResult {
   summary: string;
@@ -67,71 +68,104 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [description, setDescription] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  const handleImageUpload = async (file: File) => {
-    setIsAnalyzing(true)
-    setError(null)
+  const handleImageSelect = async (file: File) => {
+    try {
+      const compressedImage = await compressImage(file);
+      setImageUrl(compressedImage);
+      setSelectedFile(file);
+      setError(null);
+      setAnalysisResult(null);
+    } catch (error) {
+      console.error('Error handling image:', error);
+      setError('Failed to process image. Please try again.');
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!imageUrl) {
+      setError('Please select an image first');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
     
     try {
-      // Compress the image before sending
-      const compressedImage = await compressImage(file);
-      setImageUrl(compressedImage)
-      
-      try {
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            image: compressedImage
-          })
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: imageUrl,
+          description: description.trim() || undefined // Only send if not empty
         })
+      });
 
-        let data
-        const contentType = response.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json()
-        } else {
-          // If not JSON, get the text and try to parse it
-          const text = await response.text()
-          try {
-            data = JSON.parse(text)
-          } catch (e) {
-            console.error('Response was not JSON:', text)
-            throw new Error(`Server error: ${text}`)
-          }
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // If not JSON, get the text and try to parse it
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('Response was not JSON:', text);
+          throw new Error(`Server error: ${text}`);
         }
-
-        if (!response.ok) {
-          throw new Error(
-            `API Error: ${data.error || data.details || response.statusText}`
-          )
-        }
-
-        if (!data.summary || !data.tools || !data.steps) {
-          throw new Error('Invalid response format from API')
-        }
-
-        setAnalysisResult(data)
-      } catch (error) {
-        console.error('Error analyzing image:', error)
-        setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.')
-      } finally {
-        setIsAnalyzing(false)
       }
+
+      if (!response.ok) {
+        throw new Error(
+          `API Error: ${data.error || data.details || response.statusText}`
+        );
+      }
+
+      if (!data.summary || !data.tools || !data.steps) {
+        throw new Error('Invalid response format from API');
+      }
+
+      setAnalysisResult(data);
     } catch (error) {
-      console.error('Error handling image:', error)
-      setError('Failed to process image. Please try again.')
-      setIsAnalyzing(false)
+      console.error('Error analyzing image:', error);
+      setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
     }
-  }
+  };
 
   return (
     <div className="app">
       <Header />
       <main>
-        <ImageUpload onUpload={handleImageUpload} isAnalyzing={isAnalyzing} />
+        <div className="upload-section">
+          <ImageUpload 
+            onImageSelect={handleImageSelect} 
+            isAnalyzing={isAnalyzing}
+            selectedImage={imageUrl}
+          />
+          {imageUrl && (
+            <>
+              <DescriptionInput
+                description={description}
+                onChange={setDescription}
+                isAnalyzing={isAnalyzing}
+              />
+              <button 
+                className="analyze-button"
+                onClick={handleAnalyze}
+                disabled={isAnalyzing}
+              >
+                {isAnalyzing ? 'Analyzing...' : 'Analyze Repair'}
+              </button>
+            </>
+          )}
+        </div>
         {error && <div className="error-message">{error}</div>}
         {analysisResult && <Analysis result={analysisResult} imageUrl={imageUrl} />}
       </main>

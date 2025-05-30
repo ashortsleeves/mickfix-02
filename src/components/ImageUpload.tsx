@@ -2,17 +2,18 @@ import { useRef } from 'react'
 import type { ChangeEvent } from 'react'
 
 interface ImageUploadProps {
-  onUpload: (file: File) => void
-  isAnalyzing: boolean
+  onImageSelect: (file: File) => void;
+  isAnalyzing: boolean;
+  selectedImage: string | null;
 }
 
-const ImageUpload = ({ onUpload, isAnalyzing }: ImageUploadProps) => {
+const ImageUpload = ({ onImageSelect, isAnalyzing, selectedImage }: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      onUpload(file)
+      onImageSelect(file)
     }
   }
 
@@ -20,7 +21,7 @@ const ImageUpload = ({ onUpload, isAnalyzing }: ImageUploadProps) => {
     e.preventDefault()
     const file = e.dataTransfer.files?.[0]
     if (file) {
-      onUpload(file)
+      onImageSelect(file)
     }
   }
 
@@ -29,12 +30,14 @@ const ImageUpload = ({ onUpload, isAnalyzing }: ImageUploadProps) => {
   }
 
   const handleClick = () => {
-    fileInputRef.current?.click()
+    if (!isAnalyzing) {
+      fileInputRef.current?.click()
+    }
   }
 
   return (
     <div
-      className="upload-container"
+      className={`upload-container ${selectedImage ? 'has-image' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onClick={handleClick}
@@ -50,6 +53,11 @@ const ImageUpload = ({ onUpload, isAnalyzing }: ImageUploadProps) => {
         <div className="analyzing">
           <div className="spinner"></div>
           <p>Analyzing your photo...</p>
+        </div>
+      ) : selectedImage ? (
+        <div className="image-preview">
+          <img src={selectedImage} alt="Selected repair issue" className="preview-image" />
+          <p className="change-image-text">Click or drag to change image</p>
         </div>
       ) : (
         <div className="upload-prompt">

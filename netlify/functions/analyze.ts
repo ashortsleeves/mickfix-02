@@ -46,7 +46,7 @@ const handler: Handler = async (event) => {
       })
     }
 
-    const { image } = requestBody
+    const { image, description } = requestBody
     
     if (!image) {
       console.log('No image provided in request')
@@ -74,7 +74,7 @@ const handler: Handler = async (event) => {
         content: [
           { 
             type: "input_text", 
-            text: "You are a home repair expert. Analyze this image of a home repair issue and provide: 1) A brief summary of the issue, 2) A list of required tools, and 3) Step-by-step instructions to fix it. Return ONLY a JSON object with 'summary', 'tools' (array), and 'steps' (array) fields. Do not include any markdown formatting or explanation." 
+            text: `You are a home repair expert. Analyze this image of a home repair issue${description ? ' with the following context: ' + description : ''}. Provide: 1) A brief summary of the issue, 2) A list of required tools, and 3) Step-by-step instructions to fix it. Return ONLY a JSON object with 'summary', 'tools' (array), and 'steps' (array) fields. Do not include any markdown formatting or explanation.` 
           },
           {
             type: "input_image",
