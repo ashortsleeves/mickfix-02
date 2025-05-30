@@ -1,6 +1,60 @@
 import type { Handler } from '@netlify/functions'
 import OpenAI from 'openai'
 
+interface AnalysisResult {
+  summary: string;
+  tools: string[];
+  steps: string[];
+  safetyWarnings: {
+    hazardousMaterials: string[];
+    ageRelated: boolean;
+    generalWarnings: string[];
+  };
+}
+
+const HAZARDOUS_MATERIALS = {
+  LEAD: {
+    items: [
+      "Old paint (especially if chalking, flaking, or peeling)",
+      "Old plumbing and pipe solder",
+      "Vintage vinyl blinds or mini-blinds",
+      "Old ceramic tiles or glazed pottery",
+      "Vintage linoleum flooring",
+      "Older brass fixtures and faucets",
+      "Older electrical wiring with cloth insulation"
+    ]
+  },
+  ASBESTOS: {
+    items: [
+      "Popcorn ceilings (acoustic ceiling texture)",
+      "Vermiculite insulation",
+      "Old vinyl floor tiles and sheet flooring",
+      "Pipe insulation and wrap",
+      "Old HVAC duct insulation",
+      "Textured wall surfaces (stipple or swirl patterns)",
+      "Old cement siding (transite)",
+      "Old roof shingles and felt",
+      "Old furnace and boiler insulation",
+      "Window caulking and glazing",
+      "Old fire doors",
+      "Spray-on fireproofing",
+      "Old joint compound and spackling",
+      "Old electrical panel backing boards",
+      "Old heat-resistant gloves and pads",
+      "Old gaskets in furnaces and wood stoves"
+    ]
+  },
+  OTHER: {
+    items: [
+      "Mercury in old thermostats",
+      "PCBs in old fluorescent light ballasts",
+      "Creosote in old railroad ties or telephone poles",
+      "Formaldehyde in old particle board and paneling",
+      "Mold in damp or water-damaged areas"
+    ]
+  }
+};
+
 const handler: Handler = async (event) => {
   console.log('Function invoked with method:', event.httpMethod)
 
@@ -76,7 +130,25 @@ const handler: Handler = async (event) => {
         content: [
           { 
             type: "input_text", 
-            text: `You are a home repair expert. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' with the following context: ' + description : ''}. Provide: 1) A brief summary of the issue, 2) A list of required tools, and 3) Step-by-step instructions to fix it. Return ONLY a JSON object with 'summary', 'tools' (array), and 'steps' (array) fields. Do not include any markdown formatting or explanation.` 
+            text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' with the following context: ' + description : ''}. 
+
+First, estimate the approximate age of the home based on visible architectural features, materials, and fixtures. If you believe the home was built before 1990, this should be noted.
+
+Then, carefully examine the images for any potential hazardous materials, particularly:
+${Object.entries(HAZARDOUS_MATERIALS).map(([category, data]) => 
+  `${category}:\n${data.items.map(item => `- ${item}`).join('\n')}`
+).join('\n\n')}
+
+Provide your analysis in a JSON object with the following fields:
+1. 'summary': A brief summary of the repair issue
+2. 'tools': An array of required tools
+3. 'steps': An array of step-by-step instructions
+4. 'safetyWarnings': An object containing:
+   - 'hazardousMaterials': Array of potentially hazardous materials identified
+   - 'ageRelated': Boolean indicating if the home appears to be pre-1990
+   - 'generalWarnings': Array of other safety considerations
+
+Do not include any markdown formatting or explanation outside the JSON object.` 
           },
           ...images.map(image => ({
             type: "input_image" as const,
@@ -101,7 +173,7 @@ const handler: Handler = async (event) => {
       const parsedResponse = extractJsonFromResponse(response.output_text)
       
       // Validate response format
-      if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps) {
+      if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings) {
         return jsonResponse(500, {
           error: 'API Error',
           details: 'Invalid response format from OpenAI'
