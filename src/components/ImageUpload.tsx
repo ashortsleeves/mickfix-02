@@ -4,10 +4,10 @@ import type { ChangeEvent } from 'react'
 interface ImageUploadProps {
   onImageSelect: (file: File) => void;
   isAnalyzing: boolean;
-  selectedImage: string | null;
+  isAdditional: boolean;
 }
 
-const ImageUpload = ({ onImageSelect, isAnalyzing, selectedImage }: ImageUploadProps) => {
+const ImageUpload = ({ onImageSelect, isAnalyzing, isAdditional }: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -37,7 +37,7 @@ const ImageUpload = ({ onImageSelect, isAnalyzing, selectedImage }: ImageUploadP
 
   return (
     <div
-      className={`upload-container ${selectedImage ? 'has-image' : ''}`}
+      className={`upload-container ${isAdditional ? 'additional' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onClick={handleClick}
@@ -52,18 +52,15 @@ const ImageUpload = ({ onImageSelect, isAnalyzing, selectedImage }: ImageUploadP
       {isAnalyzing ? (
         <div className="analyzing">
           <div className="spinner"></div>
-          <p>Analyzing your photo...</p>
-        </div>
-      ) : selectedImage ? (
-        <div className="image-preview">
-          <img src={selectedImage} alt="Selected repair issue" className="preview-image" />
-          <p className="change-image-text">Click or drag to change image</p>
+          <p>Analyzing...</p>
         </div>
       ) : (
         <div className="upload-prompt">
-          <div className="upload-icon">📸</div>
-          <p>Click or drag an image here</p>
-          <p className="upload-subtitle">Supported formats: JPG, PNG</p>
+          <div className="upload-icon">{isAdditional ? '➕' : '📸'}</div>
+          <p>{isAdditional ? 'Add another image' : 'Click or drag an image here'}</p>
+          {!isAdditional && (
+            <p className="upload-subtitle">Supported formats: JPG, PNG</p>
+          )}
         </div>
       )}
     </div>

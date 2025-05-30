@@ -46,24 +46,26 @@ const handler: Handler = async (event) => {
       })
     }
 
-    const { image, description } = requestBody
+    const { images, description } = requestBody
     
-    if (!image) {
-      console.log('No image provided in request')
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      console.log('No images provided in request')
       return jsonResponse(400, { 
         error: 'Invalid Request',
-        details: 'No image provided'
+        details: 'At least one image must be provided'
       })
     }
 
     // Validate image data
-    console.log('Image data length:', image.length)
-    if (!image.startsWith('data:image/') && !image.startsWith('http')) {
-      console.log('Invalid image format')
-      return jsonResponse(400, { 
-        error: 'Invalid Request',
-        details: 'Invalid image format. Must be a data URL or HTTP URL.'
-      })
+    for (const image of images) {
+      console.log('Image data length:', image.length)
+      if (!image.startsWith('data:image/') && !image.startsWith('http')) {
+        console.log('Invalid image format')
+        return jsonResponse(400, { 
+          error: 'Invalid Request',
+          details: 'Invalid image format. Must be a data URL or HTTP URL.'
+        })
+      }
     }
 
     console.log('Attempting to call OpenAI API...')
@@ -74,13 +76,13 @@ const handler: Handler = async (event) => {
         content: [
           { 
             type: "input_text", 
-            text: `You are a home repair expert. Analyze this image of a home repair issue${description ? ' with the following context: ' + description : ''}. Provide: 1) A brief summary of the issue, 2) A list of required tools, and 3) Step-by-step instructions to fix it. Return ONLY a JSON object with 'summary', 'tools' (array), and 'steps' (array) fields. Do not include any markdown formatting or explanation.` 
+            text: `You are a home repair expert. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' with the following context: ' + description : ''}. Provide: 1) A brief summary of the issue, 2) A list of required tools, and 3) Step-by-step instructions to fix it. Return ONLY a JSON object with 'summary', 'tools' (array), and 'steps' (array) fields. Do not include any markdown formatting or explanation.` 
           },
-          {
-            type: "input_image",
+          ...images.map(image => ({
+            type: "input_image" as const,
             image_url: image,
-            detail: "high"
-          }
+            detail: "high" as const
+          }))
         ]
       }]
     })

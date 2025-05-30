@@ -11,6 +11,11 @@ interface AnalysisResult {
   steps: string[];
 }
 
+interface ImageData {
+  url: string;
+  file: File;
+}
+
 // Function to compress image
 const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -67,15 +72,13 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [images, setImages] = useState<ImageData[]>([])
   const [description, setDescription] = useState('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const handleImageSelect = async (file: File) => {
     try {
       const compressedImage = await compressImage(file);
-      setImageUrl(compressedImage);
-      setSelectedFile(file);
+      setImages(prev => [...prev, { url: compressedImage, file }]);
       setError(null);
       setAnalysisResult(null);
     } catch (error) {
@@ -84,9 +87,13 @@ function App() {
     }
   };
 
+  const handleRemoveImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleAnalyze = async () => {
-    if (!imageUrl) {
-      setError('Please select an image first');
+    if (images.length === 0) {
+      setError('Please select at least one image');
       return;
     }
 
@@ -100,8 +107,8 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: imageUrl,
-          description: description.trim() || undefined // Only send if not empty
+          images: images.map(img => img.url),
+          description: description.trim() || undefined
         })
       });
 
@@ -110,7 +117,6 @@ function App() {
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
       } else {
-        // If not JSON, get the text and try to parse it
         const text = await response.text();
         try {
           data = JSON.parse(text);
@@ -144,12 +150,30 @@ function App() {
       <Header />
       <main>
         <div className="upload-section">
-          <ImageUpload 
-            onImageSelect={handleImageSelect} 
-            isAnalyzing={isAnalyzing}
-            selectedImage={imageUrl}
-          />
-          {imageUrl && (
+          <div className="images-grid">
+            {images.map((image, index) => (
+              <div key={index} className="image-container">
+                <img 
+                  src={image.url} 
+                  alt={`Repair issue ${index + 1}`} 
+                  className="preview-image"
+                />
+                <button 
+                  className="remove-image-button"
+                  onClick={() => handleRemoveImage(index)}
+                  disabled={isAnalyzing}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <ImageUpload 
+              onImageSelect={handleImageSelect}
+              isAnalyzing={isAnalyzing}
+              isAdditional={images.length > 0}
+            />
+          </div>
+          {images.length > 0 && (
             <>
               <DescriptionInput
                 description={description}
@@ -167,7 +191,7 @@ function App() {
           )}
         </div>
         {error && <div className="error-message">{error}</div>}
-        {analysisResult && <Analysis result={analysisResult} imageUrl={imageUrl} />}
+        {analysisResult && <Analysis result={analysisResult} />}
       </main>
     </div>
   )

@@ -6,19 +6,11 @@ interface AnalysisResult {
 
 interface AnalysisProps {
   result: AnalysisResult
-  imageUrl: string | null
 }
 
-const Analysis = ({ result, imageUrl }: AnalysisProps) => {
+const Analysis = ({ result }: AnalysisProps) => {
   return (
     <div className="analysis">
-      {imageUrl && (
-        <section className="uploaded-image">
-          <h2>Uploaded Image</h2>
-          <img src={imageUrl} alt="Uploaded repair issue" style={{ maxWidth: '100%', borderRadius: '8px' }} />
-        </section>
-      )}
-
       <section className="summary">
         <h2>Analysis Summary</h2>
         <p>{result.summary}</p>
