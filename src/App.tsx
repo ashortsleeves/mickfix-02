@@ -66,6 +66,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
 
   const handleImageUpload = async (file: File) => {
     setIsAnalyzing(true)
@@ -74,6 +75,7 @@ function App() {
     try {
       // Compress the image before sending
       const compressedImage = await compressImage(file);
+      setImageUrl(compressedImage)
       
       try {
         const response = await fetch('/api/analyze', {
@@ -131,7 +133,7 @@ function App() {
       <main>
         <ImageUpload onUpload={handleImageUpload} isAnalyzing={isAnalyzing} />
         {error && <div className="error-message">{error}</div>}
-        {analysisResult && <Analysis result={analysisResult} />}
+        {analysisResult && <Analysis result={analysisResult} imageUrl={imageUrl} />}
       </main>
     </div>
   )
