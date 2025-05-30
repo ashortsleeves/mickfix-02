@@ -139,8 +139,13 @@ ${Object.entries(HAZARDOUS_MATERIALS).map(([category, data]) =>
   `${category}:\n${data.items.map(item => `- ${item}`).join('\n')}`
 ).join('\n\n')}
 
+If the user's description contains any questions, make sure to address them directly in your summary.
+
 Provide your analysis in a JSON object with the following fields:
-1. 'summary': A brief summary of the repair issue
+1. 'summary': A brief summary that includes:
+   - Description of the repair issue
+   - Direct answers to any questions asked in the user's description
+   - Key findings from the visual analysis
 2. 'tools': An array of required tools
 3. 'steps': An array of step-by-step instructions
 4. 'safetyWarnings': An object containing:
