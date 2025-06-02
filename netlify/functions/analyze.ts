@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions'
 import OpenAI from 'openai'
+import type { ChatCompletionContentPartImage, ChatCompletionContentPartText } from 'openai/resources/chat/completions'
 
 interface AnalysisResult {
   summary: string;
@@ -89,48 +90,63 @@ const handler: Handler = async (event) => {
       apiKey: process.env.OPENAI_API_KEY
     })
 
-    // Parse request body
-    let requestBody
     try {
-      requestBody = JSON.parse(event.body || '{}')
-    } catch (e) {
-      return jsonResponse(400, { 
-        error: 'Invalid Request',
-        details: 'Request body must be valid JSON'
-      })
-    }
-
-    const { images, description } = requestBody
-    
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      console.log('No images provided in request')
-      return jsonResponse(400, { 
-        error: 'Invalid Request',
-        details: 'At least one image must be provided'
-      })
-    }
-
-    // Validate image data
-    for (const image of images) {
-      console.log('Image data length:', image.length)
-      if (!image.startsWith('data:image/') && !image.startsWith('http')) {
-        console.log('Invalid image format')
+      // Log request body
+      console.log('Request body:', event.body)
+      
+      // Parse request body
+      let requestBody
+      try {
+        requestBody = JSON.parse(event.body || '{}')
+        console.log('Parsed request body:', {
+          hasImages: !!requestBody.images,
+          imageCount: requestBody.images?.length,
+          hasDescription: !!requestBody.description
+        })
+      } catch (e) {
+        console.error('Failed to parse request body:', e)
         return jsonResponse(400, { 
           error: 'Invalid Request',
-          details: 'Invalid image format. Must be a data URL or HTTP URL.'
+          details: 'Request body must be valid JSON'
         })
       }
-    }
 
-    console.log('Attempting to call OpenAI API...')
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: [{
-        role: "user",
-        content: [
-          { 
-            type: "input_text", 
-            text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}. 
+      const { images, description } = requestBody
+      
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        console.log('No images provided in request')
+        return jsonResponse(400, { 
+          error: 'Invalid Request',
+          details: 'At least one image must be provided'
+        })
+      }
+
+      // Validate image data
+      console.log('Validating images...')
+      for (const image of images) {
+        console.log('Image data type:', typeof image)
+        console.log('Image data starts with:', image.substring(0, 50) + '...')
+        if (!image.startsWith('data:image/') && !image.startsWith('http')) {
+          console.log('Invalid image format detected')
+          return jsonResponse(400, { 
+            error: 'Invalid Request',
+            details: 'Invalid image format. Must be a data URL or HTTP URL.'
+          })
+        }
+      }
+
+      console.log('Images validated successfully')
+      console.log('Attempting to call OpenAI API...')
+      
+      try {
+        const response = await openai.responses.create({
+          model: "gpt-4.1-mini",
+          input: [{
+            role: "user",
+            content: [
+              { 
+                type: "input_text", 
+                text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}. 
 
 First, estimate the approximate age of the home based on visible architectural features, materials, and fixtures. If you believe the home was built before 1990, this should be noted.
 
@@ -149,43 +165,87 @@ Provide your analysis in a JSON object with the following fields:
    - 'generalWarnings': Array of other safety considerations
 
 Do not include any markdown formatting or explanation outside the JSON object.` 
-          },
-          ...images.map(image => ({
-            type: "input_image" as const,
-            image_url: image,
-            detail: "high" as const
-          }))
-        ]
-      }]
-    })
+              },
+              ...images.map(image => ({
+                type: "input_image" as const,
+                image_url: image,
+                detail: "high" as const
+              }))
+            ]
+          }]
+        })
 
-    console.log('OpenAI API response received')
-    console.log('Response type:', typeof response.output_text)
-    
-    if (!response.output_text) {
-      return jsonResponse(500, {
-        error: 'API Error',
-        details: 'No response received from OpenAI'
-      })
-    }
+        console.log('OpenAI API response received')
+        console.log('Response type:', typeof response.output_text)
+        console.log('Response length:', response.output_text?.length || 0)
+        
+        if (!response.output_text) {
+          console.error('No output_text in response')
+          return jsonResponse(500, {
+            error: 'API Error',
+            details: 'No response received from OpenAI'
+          })
+        }
 
-    try {
-      const parsedResponse = extractJsonFromResponse(response.output_text)
-      
-      // Validate response format
-      if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings) {
+        try {
+          console.log('Attempting to parse response...')
+          const parsedResponse = extractJsonFromResponse(response.output_text)
+          console.log('Successfully parsed response')
+          
+          // Validate response format
+          if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings) {
+            console.error('Invalid response format:', parsedResponse)
+            return jsonResponse(500, {
+              error: 'API Error',
+              details: 'Invalid response format from OpenAI'
+            })
+          }
+
+          return jsonResponse(200, parsedResponse)
+        } catch (e) {
+          console.error('Failed to parse OpenAI response:', response.output_text)
+          console.error('Parse error:', e)
+          return jsonResponse(500, {
+            error: 'API Error',
+            details: 'Failed to parse OpenAI response'
+          })
+        }
+      } catch (openaiError) {
+        console.error('OpenAI API call failed:', {
+          error: openaiError,
+          status: openaiError.status,
+          message: openaiError.message,
+          type: openaiError.type
+        })
         return jsonResponse(500, {
-          error: 'API Error',
-          details: 'Invalid response format from OpenAI'
+          error: 'OpenAI API Error',
+          details: openaiError.message,
+          type: openaiError.type
+        })
+      }
+    } catch (error) {
+      console.error('Detailed error:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        status: error.status,
+        type: error.type,
+        code: error.code
+      })
+
+      // If it is an OpenAI API error, it might have additional details
+      if (error instanceof Error && 'status' in error) {
+        console.error('OpenAI API Error details:', {
+          status: (error as any).status,
+          data: (error as any).data,
+          headers: (error as any).headers
         })
       }
 
-      return jsonResponse(200, parsedResponse)
-    } catch (e) {
-      console.error('Failed to parse OpenAI response:', response.output_text)
       return jsonResponse(500, {
-        error: 'API Error',
-        details: 'Failed to parse OpenAI response'
+        error: 'Internal Server Error',
+        details: error instanceof Error ? error.message : 'Unknown error occurred',
+        type: error instanceof Error ? (error.name || 'Error') : 'Unknown'
       })
     }
   } catch (error) {
