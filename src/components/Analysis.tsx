@@ -25,7 +25,7 @@ const Analysis = ({ result, onFollowUpQuestion, isAnalyzing }: AnalysisProps) =>
     summary = '',
     tools = [],
     steps = [],
-    imageDescriptions = [],
+    _imageDescriptions = [],
     safetyWarnings = {
       hazardousMaterials: [],
       ageRelated: false,
