@@ -57,9 +57,10 @@ const HAZARDOUS_MATERIALS = {
 };
 
 const handler: Handler = async (event) => {
-  console.log('Function invoked with method:', event.httpMethod)
+  // Only log errors or use a debug flag
+  const DEBUG = false;
+  if (DEBUG) console.log('Function invoked with method:', event.httpMethod)
 
-  // Always return JSON responses
   const jsonResponse = (statusCode: number, body: any) => ({
     statusCode,
     headers: {
@@ -73,10 +74,7 @@ const handler: Handler = async (event) => {
   }
 
   try {
-    // Log environment check
     const hasApiKey = !!process.env.OPENAI_API_KEY
-    console.log('Environment check - API Key exists:', hasApiKey)
-    
     if (!hasApiKey) {
       return jsonResponse(500, { 
         error: 'Configuration Error',
@@ -84,27 +82,16 @@ const handler: Handler = async (event) => {
       })
     }
 
-    // Initialize OpenAI client
-    console.log('Initializing OpenAI client...')
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
     })
 
     try {
-      // Log request body
-      console.log('Request body:', event.body)
-      
-      // Parse request body
       let requestBody
       try {
         requestBody = JSON.parse(event.body || '{}')
-        console.log('Parsed request body:', {
-          hasImages: !!requestBody.images,
-          imageCount: requestBody.images?.length,
-          hasDescription: !!requestBody.description
-        })
       } catch (e) {
-        console.error('Failed to parse request body:', e)
+        if (DEBUG) console.error('Failed to parse request body:', e)
         return jsonResponse(400, { 
           error: 'Invalid Request',
           details: 'Request body must be valid JSON'
@@ -112,22 +99,16 @@ const handler: Handler = async (event) => {
       }
 
       const { images, description } = requestBody
-      
       if (!images || !Array.isArray(images) || images.length === 0) {
-        console.log('No images provided in request')
         return jsonResponse(400, { 
           error: 'Invalid Request',
           details: 'At least one image must be provided'
         })
       }
 
-      // Validate image data
-      console.log('Validating images...')
-      for (const image of images) {
-        console.log('Image data type:', typeof image)
-        console.log('Image data starts with:', image.substring(0, 50) + '...')
-        if (!image.startsWith('data:image/') && !image.startsWith('http')) {
-          console.log('Invalid image format detected')
+      // Validate and limit images
+      for (const image of images.slice(0, 2)) {
+        if (typeof image !== 'string' || (!image.startsWith('data:image/') && !image.startsWith('http'))) {
           return jsonResponse(400, { 
             error: 'Invalid Request',
             details: 'Invalid image format. Must be a data URL or HTTP URL.'
@@ -135,52 +116,27 @@ const handler: Handler = async (event) => {
         }
       }
 
-      console.log('Images validated successfully')
-      console.log('Attempting to call OpenAI API...')
-      
       try {
         const response = await openai.responses.create({
           model: "gpt-4.1-mini",
           input: [{
             role: "user",
             content: [
-              { 
-                type: "input_text", 
-                text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}. 
-
-First, estimate the approximate age of the home based on visible architectural features, materials, and fixtures. If you believe the home was built before 1990, this should be noted.
-
-Then, carefully examine the images for any potential hazardous materials, particularly:
-${Object.entries(HAZARDOUS_MATERIALS).map(([category, data]) => 
-  `${category}:\n${data.items.map(item => `- ${item}`).join('\n')}`
-).join('\n\n')}
-
-Provide your analysis in a JSON object with the following fields:
-1. 'summary': A brief summary that${description ? ' starts by directly addressing the user\'s question/description (using phrases like "You asked about..." or "Regarding your question about...") and then' : ''} explains the repair issue
-2. 'tools': An array of required tools
-3. 'steps': An array of step-by-step instructions
-4. 'safetyWarnings': An object containing:
-   - 'hazardousMaterials': Array of potentially hazardous materials identified
-   - 'ageRelated': Boolean indicating if the home appears to be pre-1990
-   - 'generalWarnings': Array of other safety considerations
-
-Do not include any markdown formatting or explanation outside the JSON object.` 
+              {
+                type: "input_text",
+                text: `You are a home repair expert. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question: ' + description : ''}. Consider common hazardous materials (lead, asbestos, etc.) and provide your analysis as a JSON object with: summary, tools, steps, and safetyWarnings (hazardousMaterials, ageRelated, generalWarnings).`
               },
-              ...images.map(image => ({
+              ...images.slice(0, 2).map(image => ({
                 type: "input_image" as const,
                 image_url: image,
-                detail: "high" as const
+                detail: "low" as const
               }))
             ]
           }]
         })
 
-        console.log('OpenAI API response received')
-        console.log('Response type:', typeof response.output_text)
-        console.log('Response length:', response.output_text?.length || 0)
-        
         if (!response.output_text) {
-          console.error('No output_text in response')
+          if (DEBUG) console.error('No output_text in response')
           return jsonResponse(500, {
             error: 'API Error',
             details: 'No response received from OpenAI'
@@ -188,35 +144,24 @@ Do not include any markdown formatting or explanation outside the JSON object.`
         }
 
         try {
-          console.log('Attempting to parse response...')
           const parsedResponse = extractJsonFromResponse(response.output_text)
-          console.log('Successfully parsed response')
-          
-          // Validate response format
           if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings) {
-            console.error('Invalid response format:', parsedResponse)
+            if (DEBUG) console.error('Invalid response format:', parsedResponse)
             return jsonResponse(500, {
               error: 'API Error',
               details: 'Invalid response format from OpenAI'
             })
           }
-
           return jsonResponse(200, parsedResponse)
         } catch (e) {
-          console.error('Failed to parse OpenAI response:', response.output_text)
-          console.error('Parse error:', e)
+          if (DEBUG) console.error('Failed to parse OpenAI response:', response.output_text)
           return jsonResponse(500, {
             error: 'API Error',
             details: 'Failed to parse OpenAI response'
           })
         }
       } catch (openaiError) {
-        console.error('OpenAI API call failed:', {
-          error: openaiError,
-          status: openaiError.status,
-          message: openaiError.message,
-          type: openaiError.type
-        })
+        if (DEBUG) console.error('OpenAI API call failed:', openaiError)
         return jsonResponse(500, {
           error: 'OpenAI API Error',
           details: openaiError.message,
@@ -224,24 +169,7 @@ Do not include any markdown formatting or explanation outside the JSON object.`
         })
       }
     } catch (error) {
-      console.error('Detailed error:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        status: error.status,
-        type: error.type,
-        code: error.code
-      })
-
-      // If it is an OpenAI API error, it might have additional details
-      if (error instanceof Error && 'status' in error) {
-        console.error('OpenAI API Error details:', {
-          status: (error as any).status,
-          data: (error as any).data,
-          headers: (error as any).headers
-        })
-      }
-
+      if (DEBUG) console.error('Detailed error:', error)
       return jsonResponse(500, {
         error: 'Internal Server Error',
         details: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -249,24 +177,7 @@ Do not include any markdown formatting or explanation outside the JSON object.`
       })
     }
   } catch (error) {
-    console.error('Detailed error:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      status: error.status,
-      type: error.type,
-      code: error.code
-    })
-
-    // If it's an OpenAI API error, it might have additional details
-    if (error instanceof Error && 'status' in error) {
-      console.error('OpenAI API Error details:', {
-        status: (error as any).status,
-        data: (error as any).data,
-        headers: (error as any).headers
-      })
-    }
-
+    if (DEBUG) console.error('Detailed error:', error)
     return jsonResponse(500, {
       error: 'Internal Server Error',
       details: error instanceof Error ? error.message : 'Unknown error occurred',
