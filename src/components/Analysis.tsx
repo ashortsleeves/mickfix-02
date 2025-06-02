@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import './Analysis.css'
 import FollowUpQuestion from './FollowUpQuestion';
 
