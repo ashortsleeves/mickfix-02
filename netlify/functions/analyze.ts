@@ -269,30 +269,52 @@ Do not include any markdown formatting or explanation outside the JSON object.`
   }
 }
 
+// Helper function to ensure response has correct structure
+function validateAndStructureResponse(parsed: any): AnalysisResult {
+  return {
+    summary: parsed.summary || '',
+    tools: Array.isArray(parsed.tools) ? parsed.tools : [],
+    steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+    imageDescriptions: Array.isArray(parsed.imageDescriptions) ? parsed.imageDescriptions : [],
+    safetyWarnings: {
+      hazardousMaterials: Array.isArray(parsed.safetyWarnings?.hazardousMaterials) 
+        ? parsed.safetyWarnings.hazardousMaterials 
+        : [],
+      ageRelated: Boolean(parsed.safetyWarnings?.ageRelated),
+      generalWarnings: Array.isArray(parsed.safetyWarnings?.generalWarnings)
+        ? parsed.safetyWarnings.generalWarnings
+        : []
+    }
+  };
+}
+
 // Helper function to clean markdown and extract JSON
-function extractJsonFromResponse(text: string): any {
+function extractJsonFromResponse(text: string): AnalysisResult {
   try {
     // First, try parsing the text directly
-    return JSON.parse(text)
+    const parsed = JSON.parse(text);
+    return validateAndStructureResponse(parsed);
   } catch (e) {
     // If that fails, try to extract JSON from markdown
     try {
       // Remove markdown code block syntax if present
-      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[1])
+        const parsed = JSON.parse(jsonMatch[1]);
+        return validateAndStructureResponse(parsed);
       }
       
       // If no markdown, try to find the first { and last }
-      const start = text.indexOf('{')
-      const end = text.lastIndexOf('}')
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
       if (start !== -1 && end !== -1) {
-        return JSON.parse(text.slice(start, end + 1))
+        const parsed = JSON.parse(text.slice(start, end + 1));
+        return validateAndStructureResponse(parsed);
       }
       
-      throw new Error('No valid JSON found in response')
+      throw new Error('No valid JSON found in response');
     } catch (e) {
-      throw new Error('Failed to parse response: ' + e.message)
+      throw new Error('Failed to parse response: ' + e.message);
     }
   }
 }
