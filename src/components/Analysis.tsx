@@ -25,7 +25,8 @@ const Analysis = ({ result, onFollowUpQuestion, isAnalyzing }: AnalysisProps) =>
     summary = '',
     tools = [],
     steps = [],
-    _imageDescriptions = [],
+    // @ts-ignore - Required for follow-up questions but not used in UI
+    imageDescriptions = [],
     safetyWarnings = {
       hazardousMaterials: [],
       ageRelated: false,
