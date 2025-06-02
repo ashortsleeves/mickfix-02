@@ -198,7 +198,7 @@ Do not include any markdown formatting or explanation outside the JSON object.`
       code: error.code
     })
 
-    // If it's an OpenAI API error, it might have additional details
+    // If it is an OpenAI API error, it might have additional details
     if (error instanceof Error && 'status' in error) {
       console.error('OpenAI API Error details:', {
         status: (error as any).status,
