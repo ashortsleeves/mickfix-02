@@ -169,7 +169,7 @@ Do not include any markdown formatting or explanation outside the JSON object.`
               ...images.map(image => ({
                 type: "input_image" as const,
                 image_url: image,
-                detail: "high" as const
+                detail: "low" as const
               }))
             ]
           }]
