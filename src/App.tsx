@@ -9,6 +9,11 @@ interface AnalysisResult {
   summary: string;
   tools: string[];
   steps: string[];
+  safetyWarnings: {
+    hazardousMaterials: string[];
+    ageRelated: boolean;
+    generalWarnings: string[];
+  };
 }
 
 interface ImageData {
