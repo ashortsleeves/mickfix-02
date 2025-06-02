@@ -1,5 +1,4 @@
 import './Analysis.css'
-import FollowUpQuestion from './FollowUpQuestion';
 
 interface AnalysisResult {
   summary: string
@@ -10,36 +9,18 @@ interface AnalysisResult {
     ageRelated: boolean
     generalWarnings: string[]
   }
-  imageDescriptions: string[]
 }
 
 interface AnalysisProps {
   result: AnalysisResult
-  onFollowUpQuestion: (question: string) => void
-  isAnalyzing: boolean
 }
 
-const Analysis = ({ result, onFollowUpQuestion, isAnalyzing }: AnalysisProps) => {
-  // Ensure all properties have default values
-  const {
-    summary = '',
-    tools = [],
-    steps = [],
-    // @ts-ignore - Required for follow-up questions but not used in UI
-    imageDescriptions = [],
-    safetyWarnings = {
-      hazardousMaterials: [],
-      ageRelated: false,
-      generalWarnings: []
-    }
-  } = result || {};
-
+const Analysis = ({ result }: AnalysisProps) => {
   return (
     <div className="analysis-container">
-      {safetyWarnings && (
-        (safetyWarnings.hazardousMaterials?.length > 0 || 
-        safetyWarnings.ageRelated || 
-        safetyWarnings.generalWarnings?.length > 0) && (
+      {result.safetyWarnings && (result.safetyWarnings.hazardousMaterials.length > 0 || 
+        result.safetyWarnings.ageRelated || 
+        result.safetyWarnings.generalWarnings.length > 0) && (
         <div className="safety-warning">
           <div className="warning-content">
             <div className="warning-header">
@@ -51,28 +32,28 @@ const Analysis = ({ result, onFollowUpQuestion, isAnalyzing }: AnalysisProps) =>
               <div className="warning-body">
                 <h3>Safety Warnings</h3>
                 <div className="warning-details">
-                  {safetyWarnings.ageRelated && (
+                  {result.safetyWarnings.ageRelated && (
                     <div className="age-warning">
                       <p>
                         ⚠️ This appears to be a pre-1990 home. Older homes may contain hazardous materials such as lead paint and asbestos. Professional inspection is recommended before proceeding with repairs.
                       </p>
                     </div>
                   )}
-                  {safetyWarnings.hazardousMaterials?.length > 0 && (
+                  {result.safetyWarnings.hazardousMaterials.length > 0 && (
                     <div className="hazard-list">
                       <p className="hazard-title">Potential hazardous materials detected:</p>
                       <ul>
-                        {safetyWarnings.hazardousMaterials.map((material, index) => (
+                        {result.safetyWarnings.hazardousMaterials.map((material, index) => (
                           <li key={index}>{material}</li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  {safetyWarnings.generalWarnings?.length > 0 && (
+                  {result.safetyWarnings.generalWarnings.length > 0 && (
                     <div className="general-warnings">
                       <p className="warning-title">Additional safety considerations:</p>
                       <ul>
-                        {safetyWarnings.generalWarnings.map((warning, index) => (
+                        {result.safetyWarnings.generalWarnings.map((warning, index) => (
                           <li key={index}>{warning}</li>
                         ))}
                       </ul>
@@ -88,45 +69,32 @@ const Analysis = ({ result, onFollowUpQuestion, isAnalyzing }: AnalysisProps) =>
             </div>
           </div>
         </div>
-      ))}
+      )}
 
       <div className="analysis-results">
         <h2>Analysis Results</h2>
         <div className="analysis-section">
           <h3>Summary</h3>
-          <p>{summary}</p>
+          <p>{result.summary}</p>
         </div>
         
         <div className="analysis-section">
           <h3>Required Tools</h3>
-          {Array.isArray(tools) && tools.length > 0 ? (
-            <ul>
-              {tools.map((tool, index) => (
-                <li key={index}>{tool}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>No additional tools required.</p>
-          )}
+          <ul>
+            {result.tools.map((tool, index) => (
+              <li key={index}>{tool}</li>
+            ))}
+          </ul>
         </div>
         
         <div className="analysis-section">
           <h3>Repair Steps</h3>
-          {Array.isArray(steps) && steps.length > 0 ? (
-            <ol>
-              {steps.map((step, index) => (
-                <li key={index}>{step}</li>
-              ))}
-            </ol>
-          ) : (
-            <p>No specific steps provided.</p>
-          )}
+          <ol>
+            {result.steps.map((step, index) => (
+              <li key={index}>{step}</li>
+            ))}
+          </ol>
         </div>
-
-        <FollowUpQuestion
-          isAnalyzing={isAnalyzing}
-          onSubmit={onFollowUpQuestion}
-        />
       </div>
     </div>
   )
