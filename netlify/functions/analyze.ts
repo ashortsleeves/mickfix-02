@@ -10,6 +10,23 @@ interface AnalysisResult {
     ageRelated: boolean;
     generalWarnings: string[];
   };
+  imageDescriptions: string[];
+}
+
+interface AnalyzeRequestBody {
+  images?: string[];
+  description?: string;
+  imageDescriptions?: string[];
+  previousAnalysis?: {
+    summary: string;
+    tools: string[];
+    steps: string[];
+    safetyWarnings: {
+      hazardousMaterials: string[];
+      ageRelated: boolean;
+      generalWarnings: string[];
+    };
+  };
 }
 
 const HAZARDOUS_MATERIALS = {
@@ -100,18 +117,18 @@ const handler: Handler = async (event) => {
       })
     }
 
-    const { images, description } = requestBody
+    const { images, description, imageDescriptions, previousAnalysis } = requestBody
     
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      console.log('No images provided in request')
+    if (!images && !imageDescriptions) {
+      console.log('No images or image descriptions provided')
       return jsonResponse(400, { 
         error: 'Invalid Request',
-        details: 'At least one image must be provided'
+        details: 'No images or image descriptions provided'
       })
     }
 
     // Validate image data
-    for (const image of images) {
+    for (const image of images || []) {
       console.log('Image data length:', image.length)
       if (!image.startsWith('data:image/') && !image.startsWith('http')) {
         console.log('Invalid image format')
@@ -127,14 +144,50 @@ const handler: Handler = async (event) => {
       model: "gpt-4.1-mini",
       input: [{
         role: "user",
-        content: [
+        content: imageDescriptions ? [
           { 
             type: "input_text", 
-            text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}. 
+            text: `You are a home repair expert. A user has asked a follow-up question about their home repair issue: "${description}"
 
-First, estimate the approximate age of the home based on visible architectural features, materials, and fixtures. If you believe the home was built before 1990, this should be noted.
+Here are the detailed descriptions of the images they previously shared:
+${imageDescriptions.map((desc, i) => `Image ${i + 1}: ${desc}`).join('\n\n')}
 
-Then, carefully examine the images for any potential hazardous materials, particularly:
+Previous analysis:
+- Summary: ${previousAnalysis?.summary}
+- Tools needed: ${previousAnalysis?.tools.join(', ')}
+- Steps: ${previousAnalysis?.steps.join('; ')}
+- Safety Warnings:
+  * Hazardous Materials: ${previousAnalysis?.safetyWarnings.hazardousMaterials.join(', ') || 'None identified'}
+  * Pre-1990 Home: ${previousAnalysis?.safetyWarnings.ageRelated ? 'Yes' : 'No'}
+  * General Warnings: ${previousAnalysis?.safetyWarnings.generalWarnings.join(', ') || 'None'}
+
+Please address their follow-up question directly, using phrases like "You asked about..." or "Regarding your question about...". Provide your response in a JSON object with the following fields:
+1. 'summary': A direct answer to their question
+2. 'tools': Any additional or modified tools needed
+3. 'steps': Any additional or modified steps
+4. 'safetyWarnings': Updated safety warnings if relevant
+5. 'imageDescriptions': The same image descriptions provided (to maintain context for future questions)
+
+Do not include any markdown formatting or explanation outside the JSON object.`
+          }
+        ] : [
+          { 
+            type: "input_text", 
+            text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images!.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}. 
+
+First, provide a detailed technical description of each image, including:
+- All visible construction materials and their conditions
+- Architectural features and their approximate age
+- Any visible damage or wear
+- Surrounding context and environmental factors
+- Specific measurements or dimensions if discernible
+- Any text or markings visible in the image
+- Lighting conditions and any shadows that might affect visibility
+Store these descriptions to help answer follow-up questions later.
+
+Then, estimate the approximate age of the home based on visible architectural features, materials, and fixtures. If you believe the home was built before 1990, this should be noted.
+
+Next, carefully examine the images for any potential hazardous materials, particularly:
 ${Object.entries(HAZARDOUS_MATERIALS).map(([category, data]) => 
   `${category}:\n${data.items.map(item => `- ${item}`).join('\n')}`
 ).join('\n\n')}
@@ -147,10 +200,11 @@ Provide your analysis in a JSON object with the following fields:
    - 'hazardousMaterials': Array of potentially hazardous materials identified
    - 'ageRelated': Boolean indicating if the home appears to be pre-1990
    - 'generalWarnings': Array of other safety considerations
+5. 'imageDescriptions': Array of detailed technical descriptions for each image
 
-Do not include any markdown formatting or explanation outside the JSON object.` 
+Do not include any markdown formatting or explanation outside the JSON object.`
           },
-          ...images.map(image => ({
+          ...(images || []).map(image => ({
             type: "input_image" as const,
             image_url: image,
             detail: "high" as const
@@ -173,7 +227,7 @@ Do not include any markdown formatting or explanation outside the JSON object.`
       const parsedResponse = extractJsonFromResponse(response.output_text)
       
       // Validate response format
-      if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings) {
+      if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings || !parsedResponse.imageDescriptions) {
         return jsonResponse(500, {
           error: 'API Error',
           details: 'Invalid response format from OpenAI'

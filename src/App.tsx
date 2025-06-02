@@ -14,6 +14,7 @@ interface AnalysisResult {
     ageRelated: boolean;
     generalWarnings: string[];
   };
+  imageDescriptions: string[];
 }
 
 interface ImageData {
@@ -150,6 +151,63 @@ function App() {
     }
   };
 
+  const handleFollowUpQuestion = async (question: string) => {
+    if (!analysisResult) return;
+
+    setIsAnalyzing(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description: question,
+          imageDescriptions: analysisResult.imageDescriptions,
+          previousAnalysis: {
+            safetyWarnings: analysisResult.safetyWarnings,
+            summary: analysisResult.summary,
+            tools: analysisResult.tools,
+            steps: analysisResult.steps
+          }
+        })
+      });
+
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('Response was not JSON:', text);
+          throw new Error(`Server error: ${text}`);
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `API Error: ${data.error || data.details || response.statusText}`
+        );
+      }
+
+      if (!data.summary || !data.tools || !data.steps) {
+        throw new Error('Invalid response format from API');
+      }
+
+      setAnalysisResult(data);
+    } catch (error) {
+      console.error('Error analyzing follow-up question:', error);
+      setError(error instanceof Error ? error.message : 'Failed to analyze follow-up question. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
     <div className="app">
       <Header />
@@ -196,7 +254,13 @@ function App() {
           )}
         </div>
         {error && <div className="error-message">{error}</div>}
-        {analysisResult && <Analysis result={analysisResult} />}
+        {analysisResult && (
+          <Analysis 
+            result={analysisResult}
+            onFollowUpQuestion={handleFollowUpQuestion}
+            isAnalyzing={isAnalyzing}
+          />
+        )}
       </main>
     </div>
   )

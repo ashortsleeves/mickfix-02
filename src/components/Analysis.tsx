@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import './Analysis.css'
+import FollowUpQuestion from './FollowUpQuestion';
 
 interface AnalysisResult {
   summary: string
@@ -9,13 +11,16 @@ interface AnalysisResult {
     ageRelated: boolean
     generalWarnings: string[]
   }
+  imageDescriptions: string[]
 }
 
 interface AnalysisProps {
   result: AnalysisResult
+  onFollowUpQuestion: (question: string) => void
+  isAnalyzing: boolean
 }
 
-const Analysis = ({ result }: AnalysisProps) => {
+const Analysis = ({ result, onFollowUpQuestion, isAnalyzing }: AnalysisProps) => {
   return (
     <div className="analysis-container">
       {result.safetyWarnings && (result.safetyWarnings.hazardousMaterials.length > 0 || 
@@ -95,6 +100,11 @@ const Analysis = ({ result }: AnalysisProps) => {
             ))}
           </ol>
         </div>
+
+        <FollowUpQuestion
+          isAnalyzing={isAnalyzing}
+          onSubmit={onFollowUpQuestion}
+        />
       </div>
     </div>
   )
