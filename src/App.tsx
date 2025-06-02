@@ -106,16 +106,22 @@ function App() {
     setError(null);
     
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
         body: JSON.stringify({
           images: images.map(img => img.url),
           description: description.trim() || undefined
         })
       });
+
+      clearTimeout(timeoutId);
 
       let data;
       const contentType = response.headers.get('content-type');
@@ -142,9 +148,13 @@ function App() {
       }
 
       setAnalysisResult(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error analyzing image:', error);
-      setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.');
+      if (error instanceof Error && error.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to analyze image. Please try again.');
+      }
     } finally {
       setIsAnalyzing(false);
     }
