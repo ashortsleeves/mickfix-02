@@ -4,6 +4,7 @@ import ImageUpload from './components/ImageUpload'
 import Analysis from './components/Analysis'
 import Header from './components/Header'
 import DescriptionInput from './components/DescriptionInput'
+import YouTubeResults from './components/YouTubeResults'
 
 interface AnalysisResult {
   summary: string;
@@ -14,6 +15,7 @@ interface AnalysisResult {
     ageRelated: boolean;
     generalWarnings: string[];
   };
+  youtubeKeywords?: string;
 }
 
 interface ImageData {
@@ -206,7 +208,10 @@ function App() {
           )}
         </div>
         {error && <div className="error-message">{error}</div>}
-        {analysisResult && <Analysis result={analysisResult} />}
+        {analysisResult && <>
+          <Analysis result={analysisResult} />
+          <YouTubeResults query={analysisResult.youtubeKeywords || analysisResult.summary} />
+        </>}
       </main>
     </div>
   )

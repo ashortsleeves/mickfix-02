@@ -11,6 +11,7 @@ interface AnalysisResult {
     ageRelated: boolean;
     generalWarnings: string[];
   };
+  youtubeKeywords: string;
 }
 
 const HAZARDOUS_MATERIALS = {
@@ -144,14 +145,14 @@ const handler: Handler = async (event) => {
           input: [{
             role: "user",
             content: [
-              { 
-                type: "input_text", 
-                text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}. 
+              {
+                type: "input_text",
+                text: `You are a home repair expert with special expertise in identifying potential hazards and safety risks. Analyze ${images.length > 1 ? 'these images' : 'this image'} of a home repair issue${description ? ' and address this question/description: ' + description : ''}.
 
 First, estimate the approximate age of the home based on visible architectural features, materials, and fixtures. If you believe the home was built before 1990, this should be noted.
 
 Then, carefully examine the images for any potential hazardous materials, particularly:
-${Object.entries(HAZARDOUS_MATERIALS).map(([category, data]) => 
+${Object.entries(HAZARDOUS_MATERIALS).map(([category, data]) =>
   `${category}:\n${data.items.map(item => `- ${item}`).join('\n')}`
 ).join('\n\n')}
 
@@ -163,8 +164,9 @@ Provide your analysis in a JSON object with the following fields:
    - 'hazardousMaterials': Array of potentially hazardous materials identified
    - 'ageRelated': Boolean indicating if the home appears to be pre-1990
    - 'generalWarnings': Array of other safety considerations
+5. 'youtubeKeywords': A concise string of keywords (5-10 words) that would be most effective for searching YouTube for DIY or how-to videos about this specific repair issue. Do not include any explanation or extra text, just the keywords string.
 
-Do not include any markdown formatting or explanation outside the JSON object.` 
+Do not include any markdown formatting or explanation outside the JSON object.`
               },
               ...images.map(image => ({
                 type: "input_image" as const,
@@ -193,11 +195,11 @@ Do not include any markdown formatting or explanation outside the JSON object.`
           console.log('Successfully parsed response')
           
           // Validate response format
-          if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings) {
+          if (!parsedResponse.summary || !parsedResponse.tools || !parsedResponse.steps || !parsedResponse.safetyWarnings || !parsedResponse.youtubeKeywords) {
             console.error('Invalid response format:', parsedResponse)
             return jsonResponse(500, {
               error: 'API Error',
-              details: 'Invalid response format from OpenAI'
+              details: 'Invalid response format from OpenAI (missing required fields)'
             })
           }
 
