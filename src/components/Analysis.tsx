@@ -9,6 +9,7 @@ interface AnalysisResult {
     ageRelated: boolean
     generalWarnings: string[]
   }
+  youtubeKeywords?: string
 }
 
 interface AnalysisProps {
