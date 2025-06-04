@@ -48,7 +48,7 @@ const YouTubeResults: React.FC<YouTubeResultsProps> = ({ query }) => {
         }
         setLoading(false);
       })
-      .catch((err) => {
+      .catch(() => {
         setError('Failed to fetch YouTube videos.');
         setVideos([]);
         setLoading(false);
